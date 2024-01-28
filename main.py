@@ -1,11 +1,11 @@
 import streamlit as st
 import numpy as np
-import cv2
 import torch
 import torch.nn as nn
 
 from torchvision import transforms as T
 from PIL import Image
+from PIL import ImageDraw, ImageFont
 from io import BytesIO
 from denoiser_MODEL import UNet, Down, Up, ConvBlock
 from semantic_seg_MODEL import SemUNet
@@ -21,6 +21,8 @@ def main():
     elif choice == "Semantic forest segmentation":
         page_semantic_segmentation()
 
+
+
 def page_tumor_detection():
     @st.cache_data
 
@@ -33,31 +35,30 @@ def page_tumor_detection():
 
     uploaded_file = st.file_uploader("Upload an image and I will try to determine the type of tumor", type=["jpg", "png", "jpeg"])
 
-    def draw_boxes(image, results):
-        labels, cord = results.xyxyn[0][:, -1], results.xyxyn[0][:, :-1]
-        n = len(labels)
-        x_shape, y_shape = image.shape[1], image.shape[0]
-        for i in range(n):
+    def draw_boxes_pil(image, results):
+        draw = ImageDraw.Draw(image)
+        labels = results.xyxyn[0][:, -1].cpu().numpy()
+        cord = results.xyxyn[0][:, :-1].cpu().numpy()
+        for i in range(len(labels)):
             row = cord[i]
-            x1, y1, x2, y2 = int(row[0]*x_shape), int(row[1]*y_shape), int(row[2]*x_shape), int(row[3]*y_shape)
-            bgr = (0, 255, 0) # color of the box
-            classes = model.names  # Get class names from model
-            label_font = cv2.FONT_HERSHEY_SIMPLEX  # Font for the label
-            cv2.rectangle(image, (x1, y1), (x2, y2), bgr, 2)  # Draw the rectangle
-            cv2.putText(image, f'{classes[int(labels[i].item())]} {row[4]:.2f}', (x1, y1), label_font, 0.9, bgr, 2)  # Put the class name and confidence
-        return image
+            x1, y1, x2, y2 = int(row[0]*image.width), int(row[1]*image.height), int(row[2]*image.width), int(row[3]*image.height)
+            box_color = (0, 255, 0)  # green box
+            try:
+                font = ImageFont.truetype("arial.ttf", 40)
+            except IOError:
+                font = ImageFont.load_default()
+            label = f'{model.names[int(labels[i])]} {row[4]:.2f}'
+            draw.rectangle([x1, y1, x2, y2], outline=box_color, width=2)
+            draw.text((x1, y1), label, fill=box_color, font=font)
+            return image
 
     if uploaded_file is not None:
         image = Image.open(BytesIO(uploaded_file.read())).convert('RGB')
-        transform = T.Compose([T.ToTensor()])
-        input_img = transform(image).unsqueeze(0)
         results = model(image)
-        image_np = np.array(image)
-        image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-        image_boxed = draw_boxes(image_np, results)
-        image_boxed = cv2.cvtColor(image_boxed, cv2.COLOR_BGR2RGB)
+        image_boxed = draw_boxes_pil(image, results)
         st.image(image_boxed, caption='Processed Image', use_column_width=True)
- 
+
+
 def page_document_cleanup():
     model = UNet()
 
