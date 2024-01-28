@@ -65,7 +65,7 @@ def page_document_cleanup():
     @st.cache_data
     def load_model(model_path):
         model = UNet()
-        model.load_state_dict(torch.load(model_path))
+        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
         model.eval()
         return model
 
@@ -112,7 +112,7 @@ def page_semantic_segmentation():
     in_channels = 3  
     out_channels = 1  
     model = SemUNet(in_channels, out_channels)
-    model.load_state_dict(torch.load('semseg_best.pth'))
+    model.load_state_dict(torch.load('semseg_best.pth', map_location=torch.device('cpu')))
     model.eval()
     
     st.title('Semantic forest segmentation with U-Net (4 layers)')
